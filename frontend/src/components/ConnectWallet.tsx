@@ -31,7 +31,7 @@ export default function ConnectWallet() {
         value={chain?.id}
         onChange={(e) => switchChain({ chainId: Number(e.target.value) })}
       >
-        <option value={paseoTestnet.id}>Paseo Testnet</option>
+        <option value={paseoTestnet.id}>Polkadot Hub TestNet (Paseo)</option>
         <option value={kusamaHub.id}>Kusama Hub</option>
       </select>
       <button onClick={() => disconnect()}>Disconnect</button>
