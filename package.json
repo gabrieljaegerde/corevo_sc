@@ -1,0 +1,16 @@
+{
+  "name": "corevo-sc",
+  "version": "0.1.0",
+  "description": "CoReVo — Commit-Reveal Voting smart contract for Revive on Kusama/Paseo",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:paseo": "hardhat ignition deploy ignition/modules/Corevo.ts --network paseoTestnet",
+    "deploy:kusama": "hardhat ignition deploy ignition/modules/Corevo.ts --network kusamaHub"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^17.2.4",
+    "hardhat": "^2.22.0"
+  }
+}
