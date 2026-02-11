@@ -15,7 +15,13 @@ CoReVo enables confidential voting for small groups. Votes are hidden from outsi
 3. **Commit** — voters submit `keccak256(vote || oneTimeSalt || commonSalt)` on-chain
 4. **Reveal** — voters publish only their `oneTimeSalt` on-chain
 
-**Privacy model:** the common salt never appears on-chain. Only group members who received the encrypted common salt can verify votes off-chain by brute-forcing 3 options (Aye/Nay/Abstain) against each commitment. Outsiders see commitments and one-time salts but cannot reconstruct votes.
+### Private vs. public proposals
+
+CoReVo supports two modes:
+
+- **Private proposals** — the common salt is encrypted individually to each voter's X25519 public key using NaCl box (X25519 + XSalsa20-Poly1305). The encrypted ciphertexts are emitted as event data. Only group members can decrypt the common salt and verify votes off-chain. Outsiders see commitments and one-time salts but cannot reconstruct votes because the common salt never appears in plaintext on-chain.
+
+- **Public proposals** — the common salt is passed in plaintext (unencrypted) for each voter. Anyone can read it from the event logs and verify every vote after the reveal phase. This is useful for transparent governance where public auditability is desired, while still preventing voters from seeing each other's votes during the commit phase.
 
 ## Project structure
 
