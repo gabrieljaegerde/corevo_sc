@@ -5,8 +5,9 @@ import {
   useWriteContract,
   usePublicClient,
 } from "wagmi";
+import { waitForTransactionReceipt } from "@wagmi/core";
 import { COREVO_ABI } from "../abi";
-import { CONTRACT_ADDRESS } from "../wagmi";
+import { CONTRACT_ADDRESS, config } from "../wagmi";
 import {
   computeCommitment,
   verifyVote,
@@ -46,6 +47,8 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
   const [decryptedCommonSalt, setDecryptedCommonSalt] = useState<string | null>(
     null
   );
+  const [saltLoading, setSaltLoading] = useState(true);
+  const [saltError, setSaltError] = useState(false);
 
   // ─── Contract reads ────────────────────────────────────────────
 
@@ -63,14 +66,14 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     args: [proposalId],
   });
 
-  const { data: myCommitment } = useReadContract({
+  const { data: myCommitment, refetch: refetchCommitment } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: COREVO_ABI,
     functionName: "commitments",
     args: address ? [proposalId, address] : undefined,
   });
 
-  const { data: myRevealedSalt } = useReadContract({
+  const { data: myRevealedSalt, refetch: refetchReveal } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: COREVO_ABI,
     functionName: "revealedSalts",
@@ -84,12 +87,78 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     args: address ? [proposalId, address] : undefined,
   });
 
-  const { data: progress } = useReadContract({
+  const { data: progress, refetch: refetchProgress } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: COREVO_ABI,
     functionName: "getRevealProgress",
     args: [proposalId],
   });
+
+  // ─── Try to auto-decrypt commonSalt from invitation events ─────
+  // Must be above the early return to respect React's rules of hooks.
+
+  useEffect(() => {
+    if (!keyPair || !address || !client || !proposal || decryptedCommonSalt) {
+      if (!proposal) return; // still loading proposal
+      setSaltLoading(false);
+      return;
+    }
+    const [proposerAddr, , , proposalIsPublic] = proposal;
+    setSaltLoading(true);
+    setSaltError(false);
+    (async () => {
+      try {
+        const logs = await client.getContractEvents({
+          address: CONTRACT_ADDRESS,
+          abi: COREVO_ABI,
+          eventName: "VoterInvited",
+          args: { proposalId, voter: address },
+          fromBlock: 0n,
+        });
+        if (logs.length === 0) {
+          setSaltLoading(false);
+          return;
+        }
+        const encBytes = logs[0].args.encryptedSalt;
+        if (!encBytes || encBytes === "0x") {
+          setSaltLoading(false);
+          return;
+        }
+
+        if (proposalIsPublic) {
+          setDecryptedCommonSalt(encBytes as string);
+          setCommonSaltInput(encBytes as string);
+          setSaltLoading(false);
+          return;
+        }
+
+        // Find proposer's on-chain encryption key
+        const proposerKey = await client.readContract({
+          address: CONTRACT_ADDRESS,
+          abi: COREVO_ABI,
+          functionName: "encryptionKeys",
+          args: [proposerAddr],
+        });
+        if (!proposerKey || proposerKey === ZERO_BYTES32) {
+          setSaltLoading(false);
+          return;
+        }
+
+        const senderPub = bytes32ToPubKey(proposerKey as `0x${string}`);
+        const encrypted = hexToBytes(encBytes as `0x${string}`);
+        const decrypted = decryptSalt(encrypted, senderPub, keyPair.secretKey);
+        if (decrypted) {
+          const hex = bytesToHex(decrypted);
+          setDecryptedCommonSalt(hex);
+          setCommonSaltInput(hex);
+        }
+      } catch {
+        setSaltError(true);
+      } finally {
+        setSaltLoading(false);
+      }
+    })();
+  }, [keyPair, address, client, proposalId, proposal, decryptedCommonSalt]);
 
   if (!proposal) {
     return (
@@ -113,66 +182,27 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
   ] = proposal;
 
   const now = BigInt(Math.floor(Date.now() / 1000));
+
+  // Compute effective phase from deadlines (on-chain phase only updates on tx)
+  let effectivePhase = phase;
+  if (phase === 0 && now > commitDeadline) effectivePhase = 1;
+  if (effectivePhase === 1 && now > revealDeadline) effectivePhase = 2;
+  // If on-chain says finished, trust it
+  if (phase === 2) effectivePhase = 2;
+
   const hasCommitted = myCommitment && myCommitment !== ZERO_BYTES32;
   const hasRevealed = myRevealedSalt && myRevealedSalt !== ZERO_BYTES32;
   const storedOts = address
     ? getOneTimeSalt(proposalId, address)
     : null;
-  const canCommit = phase === 0 && now <= commitDeadline && amVoter && !hasCommitted;
+  const canCommit = effectivePhase === 0 && now <= commitDeadline && amVoter && !hasCommitted;
   const canReveal =
     !hasRevealed &&
     hasCommitted &&
-    phase !== 2 &&
+    effectivePhase === 1 &&
     now > commitDeadline &&
     now <= revealDeadline;
-  const canFinalize = phase !== 2 && now > revealDeadline;
-
-  // ─── Try to auto-decrypt commonSalt from invitation events ─────
-
-  useEffect(() => {
-    if (!keyPair || !address || !client || decryptedCommonSalt) return;
-    (async () => {
-      try {
-        const logs = await client.getContractEvents({
-          address: CONTRACT_ADDRESS,
-          abi: COREVO_ABI,
-          eventName: "VoterInvited",
-          args: { proposalId, voter: address },
-          fromBlock: 0n,
-        });
-        if (logs.length === 0) return;
-        const encBytes = logs[0].args.encryptedSalt;
-        if (!encBytes || encBytes === "0x") return;
-
-        if (isPublic) {
-          // Public proposal: encryptedSalt is the plaintext commonSalt
-          setDecryptedCommonSalt(encBytes as string);
-          setCommonSaltInput(encBytes as string);
-          return;
-        }
-
-        // Find proposer's on-chain encryption key
-        const proposerKey = await client.readContract({
-          address: CONTRACT_ADDRESS,
-          abi: COREVO_ABI,
-          functionName: "encryptionKeys",
-          args: [proposer],
-        });
-        if (!proposerKey || proposerKey === ZERO_BYTES32) return;
-
-        const senderPub = bytes32ToPubKey(proposerKey as `0x${string}`);
-        const encrypted = hexToBytes(encBytes as `0x${string}`);
-        const decrypted = decryptSalt(encrypted, senderPub, keyPair.secretKey);
-        if (decrypted) {
-          const hex = bytesToHex(decrypted);
-          setDecryptedCommonSalt(hex);
-          setCommonSaltInput(hex);
-        }
-      } catch {
-        // Decryption may fail if we're not the right recipient
-      }
-    })();
-  }, [keyPair, address, client, proposalId, proposer, isPublic, decryptedCommonSalt]);
+  const canFinalize = effectivePhase !== 2 && now > revealDeadline;
 
   // ─── Actions ───────────────────────────────────────────────────
 
@@ -189,15 +219,16 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       const ots = randomSalt();
       const commitment = computeCommitment(selectedVote, ots, cs);
 
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: COREVO_ABI,
         functionName: "commitVote",
         args: [proposalId, commitment],
       });
+      await waitForTransactionReceipt(config, { hash });
 
       storeOneTimeSalt(proposalId, address, ots);
-      refetchProposal();
+      await Promise.all([refetchProposal(), refetchCommitment(), refetchProgress()]);
     } catch (e: any) {
       setError(e.shortMessage || e.message);
     } finally {
@@ -210,13 +241,14 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     setBusy(true);
     setError("");
     try {
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: COREVO_ABI,
         functionName: "revealSalt",
         args: [proposalId, storedOts as `0x${string}`],
       });
-      refetchProposal();
+      await waitForTransactionReceipt(config, { hash });
+      await Promise.all([refetchProposal(), refetchReveal(), refetchProgress()]);
     } catch (e: any) {
       setError(e.shortMessage || e.message);
     } finally {
@@ -228,13 +260,14 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     setBusy(true);
     setError("");
     try {
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: COREVO_ABI,
         functionName: "finalizeProposal",
         args: [proposalId],
       });
-      refetchProposal();
+      await waitForTransactionReceipt(config, { hash });
+      await refetchProposal();
     } catch (e: any) {
       setError(e.shortMessage || e.message);
     } finally {
@@ -313,8 +346,8 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
           <tr>
             <td>Phase</td>
             <td>
-              <span className={`badge phase-${phase}`}>
-                {PHASE_LABELS[phase]}
+              <span className={`badge phase-${effectivePhase}`}>
+                {PHASE_LABELS[effectivePhase]}
               </span>
               {isPublic && <span className="badge public">Public</span>}
             </td>
@@ -338,20 +371,55 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       </table>
 
       {/* ── Common salt input ─────────────────────────────────── */}
-      <div className="salt-section">
-        <label>
-          Common Salt
-          <input
-            type="text"
-            placeholder="0x..."
-            value={commonSaltInput}
-            onChange={(e) => setCommonSaltInput(e.target.value)}
-          />
-        </label>
-        {decryptedCommonSalt && (
-          <p className="success dim">Auto-decrypted from invitation</p>
-        )}
-      </div>
+      {decryptedCommonSalt ? (
+        <div className="salt-section">
+          <p className="success dim">Common salt auto-loaded from invitation</p>
+          <details className="seed-details">
+            <summary>Show / edit common salt</summary>
+            <input
+              type="text"
+              placeholder="0x..."
+              value={commonSaltInput}
+              onChange={(e) => setCommonSaltInput(e.target.value)}
+              style={{ marginTop: 6 }}
+            />
+          </details>
+        </div>
+      ) : saltLoading ? (
+        <div className="salt-section">
+          <p className="dim">Loading common salt from invitation...</p>
+          <details className="seed-details">
+            <summary>Enter manually instead</summary>
+            <input
+              type="text"
+              placeholder="0x..."
+              value={commonSaltInput}
+              onChange={(e) => setCommonSaltInput(e.target.value)}
+              style={{ marginTop: 6 }}
+            />
+          </details>
+        </div>
+      ) : (
+        <div className="salt-section">
+          {saltError && (
+            <p className="warn" style={{ marginBottom: 6 }}>
+              Could not auto-load common salt from invitation.
+            </p>
+          )}
+          <label>
+            Common Salt
+            <input
+              type="text"
+              placeholder="0x..."
+              value={commonSaltInput}
+              onChange={(e) => setCommonSaltInput(e.target.value)}
+            />
+          </label>
+          <p className="dim">
+            Paste the common salt shared by the proposal creator.
+          </p>
+        </div>
+      )}
 
       {/* ── Commit ────────────────────────────────────────────── */}
       {canCommit && (

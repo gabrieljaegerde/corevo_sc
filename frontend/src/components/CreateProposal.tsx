@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useAccount, useWriteContract, usePublicClient, useReadContract } from "wagmi";
+import { waitForTransactionReceipt } from "@wagmi/core";
 import { keccak256, toHex, bytesToHex } from "viem";
 import { COREVO_ABI } from "../abi";
-import { CONTRACT_ADDRESS } from "../wagmi";
+import { CONTRACT_ADDRESS, config } from "../wagmi";
 import {
   encryptSalt,
   bytes32ToPubKey,
@@ -28,7 +29,6 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
   const [revealMinutes, setRevealMinutes] = useState(60);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [commonSaltHex, setCommonSaltHex] = useState<string | null>(null);
 
   // Known addresses with announced keys
   const [knownAddresses, setKnownAddresses] = useState<`0x${string}`[]>([]);
@@ -150,7 +150,6 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
       const contextHash = keccak256(toHex(context));
       const commonSalt = nacl.randomBytes(32);
       const commonSaltAsHex = bytesToHex(commonSalt);
-      setCommonSaltHex(commonSaltAsHex);
 
       let encryptedSalts: `0x${string}`[];
 
@@ -176,7 +175,7 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
         encryptedSalts = encSalts;
       }
 
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: COREVO_ABI,
         functionName: "createProposal",
@@ -189,6 +188,7 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
           BigInt(revealMinutes * 60),
         ],
       });
+      await waitForTransactionReceipt(config, { hash });
 
       onCreated();
     } catch (e: any) {
@@ -296,15 +296,6 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
       <button onClick={handleCreate} disabled={busy || !keyPair}>
         {busy ? "Creating..." : "Create Proposal"}
       </button>
-
-      {commonSaltHex && (
-        <div className="salt-backup">
-          <p className="warn">
-            Save this common salt — you need it to verify votes later:
-          </p>
-          <code>{commonSaltHex}</code>
-        </div>
-      )}
 
       {error && <p className="error">{error}</p>}
     </section>

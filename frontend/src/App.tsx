@@ -13,9 +13,17 @@ export default function App() {
   const { isConnected } = useAccount();
   const [tab, setTab] = useState<Tab>("proposals");
   const [selectedProposal, setSelectedProposal] = useState<bigint | null>(null);
+  const [urlCopied, setUrlCopied] = useState(false);
 
   // Derive key pair from URL seed (generates one if missing)
   const keyPair = useMemo(() => ensureKeyPair(), []);
+
+  function handleCopyUrl() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 2000);
+    });
+  }
 
   return (
     <div className="app">
@@ -69,8 +77,54 @@ export default function App() {
       )}
 
       {!isConnected && (
-        <div className="hero">
-          <p>Connect your wallet to start voting.</p>
+        <div className="onboarding">
+          <h2>Private group voting on Polkadot</h2>
+          <p className="onboarding-intro">
+            CoReVo uses commit-reveal cryptography so votes stay hidden until
+            everyone has voted. Only your group can see the results.
+          </p>
+
+          <div className="security-notice">
+            <h4>Your encryption key lives in this URL</h4>
+            <ul>
+              <li>Bookmark this page now — this is the only way to recover your key</li>
+              <li>Never share the full URL — it contains your secret</li>
+            </ul>
+            <button className="url-copy" onClick={handleCopyUrl}>
+              {urlCopied ? "Copied!" : "Copy URL to clipboard"}
+            </button>
+          </div>
+
+          <div className="steps">
+            <div className="step done">
+              <span className="step-number">1</span>
+              <div>
+                <strong>Save your URL</strong>
+                <p>Your encryption key was generated and embedded in the URL above.</p>
+              </div>
+            </div>
+            <div className="step">
+              <span className="step-number">2</span>
+              <div>
+                <strong>Connect your wallet</strong>
+                <p>Use the connect button in the header to link your account.</p>
+              </div>
+            </div>
+            <div className="step">
+              <span className="step-number">3</span>
+              <div>
+                <strong>Announce your key on-chain</strong>
+                <p>Publish your public encryption key so others can encrypt votes for you.</p>
+              </div>
+            </div>
+            <div className="step">
+              <span className="step-number">4</span>
+              <div>
+                <strong>Vote</strong>
+                <p>Create or participate in proposals with your group.</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
