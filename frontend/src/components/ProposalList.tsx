@@ -53,16 +53,23 @@ function ProposalRow({ id, onSelect }: { id: bigint; onSelect: (id: bigint) => v
 
   const [proposer, , phase, , commitDeadline, revealDeadline, voterCount, commitCount, revealCount] = data;
   const now = BigInt(Math.floor(Date.now() / 1000));
-  const phaseLabel = PHASE_LABELS[phase] || "Unknown";
 
-  let status: string = phaseLabel;
-  if (phase === 0 && now > commitDeadline) status = "Commit ended";
-  if (phase === 1 && now > revealDeadline) status = "Reveal ended";
+  // Compute effective phase purely from deadlines (same as ProposalDetail).
+  // The contract auto-finishes when all committers reveal, but we show
+  // "Reveal" as long as the reveal deadline hasn't passed yet.
+  let effectivePhase: number;
+  if (now <= commitDeadline) {
+    effectivePhase = 0;
+  } else if (now <= revealDeadline) {
+    effectivePhase = 1;
+  } else {
+    effectivePhase = 2;
+  }
 
   return (
     <li onClick={() => onSelect(id)}>
       <span className="proposal-id">#{id.toString()}</span>
-      <span className={`badge phase-${phase}`}>{status}</span>
+      <span className={`badge phase-${effectivePhase}`}>{PHASE_LABELS[effectivePhase]}</span>
       <span className="dim">
         {Number(commitCount)}/{Number(voterCount)} committed,{" "}
         {Number(revealCount)}/{Number(commitCount)} revealed

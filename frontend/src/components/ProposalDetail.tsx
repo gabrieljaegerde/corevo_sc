@@ -26,6 +26,20 @@ const PHASE_LABELS = ["Commit", "Reveal", "Finished"] as const;
 const ZERO_BYTES32 =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
 
+function formatRemaining(deadlineSec: bigint): string {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = Number(deadlineSec) - now;
+  if (diff <= 0) return "ended";
+  const d = Math.floor(diff / 86400);
+  const h = Math.floor((diff % 86400) / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  const parts: string[] = [];
+  if (d > 0) parts.push(`${d}d`);
+  if (h > 0) parts.push(`${h}h`);
+  parts.push(`${m}m`);
+  return parts.join(" ");
+}
+
 interface Props {
   proposalId: bigint;
   keyPair: EncryptionKeyPair | null;
@@ -183,18 +197,36 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
 
   const now = BigInt(Math.floor(Date.now() / 1000));
 
-  // Compute effective phase from deadlines (on-chain phase only updates on tx)
-  let effectivePhase = phase;
-  if (phase === 0 && now > commitDeadline) effectivePhase = 1;
-  if (effectivePhase === 1 && now > revealDeadline) effectivePhase = 2;
-  // If on-chain says finished, trust it
-  if (phase === 2) effectivePhase = 2;
+  // Compute effective phase from deadlines.
+  // The contract auto-finishes when all committers reveal, but we show
+  // "Reveal" as long as the reveal deadline hasn't passed yet.
+  let effectivePhase: number;
+  if (now <= commitDeadline) {
+    effectivePhase = 0; // Commit
+  } else if (now <= revealDeadline) {
+    effectivePhase = 1; // Reveal
+  } else {
+    effectivePhase = 2; // Finished
+  }
 
   const hasCommitted = myCommitment && myCommitment !== ZERO_BYTES32;
   const hasRevealed = myRevealedSalt && myRevealedSalt !== ZERO_BYTES32;
   const storedOts = address
     ? getOneTimeSalt(proposalId, address)
     : null;
+  // Derive own vote: use on-chain revealedSalt if available, else localStorage
+  const knownOts = hasRevealed
+    ? (myRevealedSalt as string)
+    : storedOts;
+  const cs = commonSaltInput.trim();
+  const myVote = (hasCommitted && knownOts && cs.length === 66)
+    ? verifyVote(
+        myCommitment as `0x${string}`,
+        knownOts as `0x${string}`,
+        cs as `0x${string}`
+      )
+    : null;
+
   const canCommit = effectivePhase === 0 && now <= commitDeadline && amVoter && !hasCommitted;
   const canReveal =
     !hasRevealed &&
@@ -354,11 +386,23 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
           </tr>
           <tr>
             <td>Commit deadline</td>
-            <td>{new Date(Number(commitDeadline) * 1000).toLocaleString()}</td>
+            <td>
+              {formatRemaining(commitDeadline) === "ended"
+                ? <span className="dim">ended</span>
+                : <>{formatRemaining(commitDeadline)} remaining</>
+              }
+              {" "}<span className="dim">({new Date(Number(commitDeadline) * 1000).toLocaleString()})</span>
+            </td>
           </tr>
           <tr>
             <td>Reveal deadline</td>
-            <td>{new Date(Number(revealDeadline) * 1000).toLocaleString()}</td>
+            <td>
+              {formatRemaining(revealDeadline) === "ended"
+                ? <span className="dim">ended</span>
+                : <>{formatRemaining(revealDeadline)} remaining</>
+              }
+              {" "}<span className="dim">({new Date(Number(revealDeadline) * 1000).toLocaleString()})</span>
+            </td>
           </tr>
           <tr>
             <td>Progress</td>
@@ -442,8 +486,11 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
         </div>
       )}
 
-      {hasCommitted && !hasRevealed && (
-        <p className="success">You have committed your vote.</p>
+      {hasCommitted && (
+        <p className="success">
+          You have committed your vote.
+          {myVote !== null && <> Your vote: <strong>{VOTE_LABELS[myVote]}</strong></>}
+        </p>
       )}
 
       {/* ── Reveal ────────────────────────────────────────────── */}

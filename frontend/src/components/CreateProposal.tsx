@@ -25,8 +25,12 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
 
   const [context, setContext] = useState("");
   const [isPublic, setIsPublic] = useState(false);
-  const [commitMinutes, setCommitMinutes] = useState(60);
-  const [revealMinutes, setRevealMinutes] = useState(60);
+  const [commitD, setCommitD] = useState(0);
+  const [commitH, setCommitH] = useState(1);
+  const [commitM, setCommitM] = useState(0);
+  const [revealD, setRevealD] = useState(0);
+  const [revealH, setRevealH] = useState(1);
+  const [revealM, setRevealM] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -184,8 +188,8 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
           allVoters,
           encryptedSalts,
           isPublic,
-          BigInt(commitMinutes * 60),
-          BigInt(revealMinutes * 60),
+          BigInt((commitD * 86400) + (commitH * 3600) + (commitM * 60)),
+          BigInt((revealD * 86400) + (revealH * 3600) + (revealM * 60)),
         ],
       });
       await waitForTransactionReceipt(config, { hash });
@@ -272,25 +276,18 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
         Public proposal (common salt visible to everyone)
       </label>
 
+      <label>Commit phase duration</label>
       <div className="row">
-        <label>
-          Commit phase (min)
-          <input
-            type="number"
-            min={1}
-            value={commitMinutes}
-            onChange={(e) => setCommitMinutes(Number(e.target.value))}
-          />
-        </label>
-        <label>
-          Reveal phase (min)
-          <input
-            type="number"
-            min={1}
-            value={revealMinutes}
-            onChange={(e) => setRevealMinutes(Number(e.target.value))}
-          />
-        </label>
+        <label>Days<input type="number" min={0} value={commitD} onChange={(e) => setCommitD(Number(e.target.value))} /></label>
+        <label>Hours<input type="number" min={0} max={23} value={commitH} onChange={(e) => setCommitH(Number(e.target.value))} /></label>
+        <label>Min<input type="number" min={0} max={59} value={commitM} onChange={(e) => setCommitM(Number(e.target.value))} /></label>
+      </div>
+
+      <label>Reveal phase duration</label>
+      <div className="row">
+        <label>Days<input type="number" min={0} value={revealD} onChange={(e) => setRevealD(Number(e.target.value))} /></label>
+        <label>Hours<input type="number" min={0} max={23} value={revealH} onChange={(e) => setRevealH(Number(e.target.value))} /></label>
+        <label>Min<input type="number" min={0} max={59} value={revealM} onChange={(e) => setRevealM(Number(e.target.value))} /></label>
       </div>
 
       <button onClick={handleCreate} disabled={busy || !keyPair}>
