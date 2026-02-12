@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAccount } from "wagmi";
 import ConnectWallet from "./components/ConnectWallet";
 import KeyStatus from "./components/KeyStatus";
 import CreateProposal from "./components/CreateProposal";
 import ProposalList from "./components/ProposalList";
 import ProposalDetail from "./components/ProposalDetail";
-import type { EncryptionKeyPair } from "./crypto";
+import { ensureKeyPair } from "./crypto";
 
 type Tab = "proposals" | "create";
 
@@ -13,7 +13,9 @@ export default function App() {
   const { isConnected } = useAccount();
   const [tab, setTab] = useState<Tab>("proposals");
   const [selectedProposal, setSelectedProposal] = useState<bigint | null>(null);
-  const [keyPair, setKeyPair] = useState<EncryptionKeyPair | null>(null);
+
+  // Derive key pair from URL seed (generates one if missing)
+  const keyPair = useMemo(() => ensureKeyPair(), []);
 
   return (
     <div className="app">
@@ -25,7 +27,7 @@ export default function App() {
 
       {isConnected && (
         <>
-          <KeyStatus keyPair={keyPair} onKeyPairDerived={setKeyPair} />
+          <KeyStatus keyPair={keyPair} />
 
           <nav>
             <button
@@ -46,16 +48,16 @@ export default function App() {
             {tab === "create" && (
               <CreateProposal
                 keyPair={keyPair}
-                onCreated={(id) => {
-                  setSelectedProposal(id);
+                onCreated={() => {
+                  setSelectedProposal(null);
                   setTab("proposals");
                 }}
               />
             )}
-            {tab === "proposals" && !selectedProposal && selectedProposal !== 0n && (
+            {tab === "proposals" && selectedProposal === null && (
               <ProposalList onSelect={setSelectedProposal} />
             )}
-            {tab === "proposals" && (selectedProposal !== null) && (
+            {tab === "proposals" && selectedProposal !== null && (
               <ProposalDetail
                 proposalId={selectedProposal}
                 keyPair={keyPair}

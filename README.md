@@ -34,18 +34,13 @@ CoReVo supports two modes:
 
 ## Known limitations
 
-### Key derivation from wallet signatures
+### Encryption key management
 
-The dApp currently derives X25519 key pairs by asking the wallet to sign a fixed message and hashing the result. This works because Ethereum (secp256k1/ECDSA) signatures are deterministic — the same account always produces the same signature for the same message.
+The dApp generates a random 32-byte encryption seed on first visit and stores it in the URL hash fragment (e.g. `#seed=a1b2c3...`). The X25519 key pair is derived from this seed. Since the fragment is never sent to a server, the seed stays entirely in the browser.
 
-However, **this is not a secure long-term solution.** If an attacker can trick a user into signing the same derivation message on a malicious site (signature replay), they can derive the same X25519 key and decrypt the user's common salts, breaking vote privacy.
+Users save their key by **bookmarking the URL**. Browser bookmark sync provides cross-device portability. On IPFS there is no server to leak it to.
 
-See [issue #1](https://github.com/gabrieljaegerde/corevo_sc/issues/1) for the full discussion. The proper fix is to fork a wallet extension (e.g. SubWallet, Talisman, or MetaMask) to:
-
-1. Derive X25519 keys deterministically from the mnemonic (like the original CoReVo does with sr25519 seeds)
-2. Expose NaCl encrypt/decrypt APIs so the secret key never leaves the extension
-
-This ensures the X25519 secret key is managed by the wallet, not by dApp JavaScript.
+This is a standalone encryption key, separate from the wallet — the wallet is only used for signing transactions. See [issue #1](https://github.com/gabrieljaegerde/corevo_sc/issues/1) for discussion on the ideal long-term approach: forking a wallet extension to derive X25519 keys natively from the mnemonic and exposing NaCl encrypt/decrypt APIs, so the secret key never leaves the extension.
 
 ## Project structure
 

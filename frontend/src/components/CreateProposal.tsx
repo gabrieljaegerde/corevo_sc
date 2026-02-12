@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useAccount, useWriteContract, usePublicClient } from "wagmi";
+import { useState, useEffect } from "react";
+import { useAccount, useWriteContract, usePublicClient, useReadContract } from "wagmi";
 import { keccak256, toHex, bytesToHex } from "viem";
 import { COREVO_ABI } from "../abi";
 import { CONTRACT_ADDRESS } from "../wagmi";
@@ -10,9 +10,11 @@ import {
 } from "../crypto";
 import nacl from "tweetnacl";
 
+const ZERO = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
 interface Props {
   keyPair: EncryptionKeyPair | null;
-  onCreated: (id: bigint) => void;
+  onCreated: () => void;
 }
 
 export default function CreateProposal({ keyPair, onCreated }: Props) {
@@ -21,7 +23,6 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
   const client = usePublicClient();
 
   const [context, setContext] = useState("");
-  const [voterInput, setVoterInput] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [commitMinutes, setCommitMinutes] = useState(60);
   const [revealMinutes, setRevealMinutes] = useState(60);
@@ -29,22 +30,116 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
   const [error, setError] = useState("");
   const [commonSaltHex, setCommonSaltHex] = useState<string | null>(null);
 
-  const voters = voterInput
+  // Known addresses with announced keys
+  const [knownAddresses, setKnownAddresses] = useState<`0x${string}`[]>([]);
+  // Selected voters (checkboxes)
+  const [selectedVoters, setSelectedVoters] = useState<Set<string>>(new Set());
+  // Additional manually entered addresses
+  const [extraInput, setExtraInput] = useState("");
+
+  // Read current user's on-chain key directly (reliable fallback)
+  const { data: myOnChainKey } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: COREVO_ABI,
+    functionName: "encryptionKeys",
+    args: address ? [address] : undefined,
+  });
+
+  // Fetch all KeyAnnounced events to build the known address list
+  useEffect(() => {
+    if (!client) return;
+    (async () => {
+      try {
+        const logs = await client.getContractEvents({
+          address: CONTRACT_ADDRESS,
+          abi: COREVO_ABI,
+          eventName: "KeyAnnounced",
+          fromBlock: 0n,
+        });
+        // Deduplicate — keep latest per address
+        const seen = new Set<string>();
+        const addrs: `0x${string}`[] = [];
+        for (let i = logs.length - 1; i >= 0; i--) {
+          const addr = logs[i].args.account as `0x${string}`;
+          const lower = addr.toLowerCase();
+          if (!seen.has(lower)) {
+            seen.add(lower);
+            addrs.push(addr);
+          }
+        }
+        setKnownAddresses(addrs);
+      } catch {
+        // Event fetching may fail on some RPCs
+      }
+    })();
+  }, [client]);
+
+  // Ensure current user appears in knownAddresses if they have an on-chain key
+  useEffect(() => {
+    if (!address || !myOnChainKey || myOnChainKey === ZERO) return;
+    setKnownAddresses((prev) => {
+      if (prev.some((a) => a.toLowerCase() === address.toLowerCase())) return prev;
+      return [address, ...prev];
+    });
+  }, [address, myOnChainKey]);
+
+  // Pre-select the creator's address
+  useEffect(() => {
+    if (address) {
+      setSelectedVoters((prev) => {
+        const next = new Set(prev);
+        next.add(address.toLowerCase());
+        return next;
+      });
+    }
+  }, [address]);
+
+  // Parse extra manually entered addresses
+  const extraAddresses = extraInput
     .split(/[\n,]+/)
     .map((s) => s.trim())
-    .filter((s) => /^0x[0-9a-fA-F]{40}$/.test(s)) as `0x${string}`[];
+    .filter((s) => /^0x[0-9a-fA-F]{40}$/i.test(s)) as `0x${string}`[];
+
+  // Combined voter list: selected known + extra manual
+  const allVoters: `0x${string}`[] = (() => {
+    const seen = new Set<string>();
+    const result: `0x${string}`[] = [];
+    for (const addr of knownAddresses) {
+      if (selectedVoters.has(addr.toLowerCase())) {
+        seen.add(addr.toLowerCase());
+        result.push(addr);
+      }
+    }
+    for (const addr of extraAddresses) {
+      if (!seen.has(addr.toLowerCase())) {
+        seen.add(addr.toLowerCase());
+        result.push(addr);
+      }
+    }
+    return result;
+  })();
+
+  function toggleVoter(addr: string) {
+    setSelectedVoters((prev) => {
+      const next = new Set(prev);
+      const key = addr.toLowerCase();
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   async function handleCreate() {
     if (!keyPair) {
-      setError("Derive your encryption key first.");
+      setError("Announce your encryption key first.");
       return;
     }
     if (!context.trim()) {
       setError("Enter a voting context.");
       return;
     }
-    if (voters.length === 0) {
-      setError("Add at least one valid voter address.");
+    if (allVoters.length === 0) {
+      setError("Select at least one voter.");
       return;
     }
 
@@ -60,18 +155,12 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
       let encryptedSalts: `0x${string}`[];
 
       if (isPublic) {
-        // Public proposal: pass commonSalt in plaintext for each voter
-        encryptedSalts = voters.map(() => commonSaltAsHex);
+        encryptedSalts = allVoters.map(() => commonSaltAsHex);
       } else {
-        // Private proposal: encrypt commonSalt to each voter's on-chain key
         const encSalts: `0x${string}`[] = [];
-        for (const voter of voters) {
+        for (const voter of allVoters) {
           const onChainKey = await readEncryptionKey(voter);
-          if (
-            !onChainKey ||
-            onChainKey ===
-              "0x0000000000000000000000000000000000000000000000000000000000000000"
-          ) {
+          if (!onChainKey || onChainKey === ZERO) {
             throw new Error(
               `Voter ${voter.slice(0, 8)}... has no encryption key registered.`
             );
@@ -87,13 +176,13 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
         encryptedSalts = encSalts;
       }
 
-      const hash = await writeContractAsync({
+      await writeContractAsync({
         address: CONTRACT_ADDRESS,
         abi: COREVO_ABI,
         functionName: "createProposal",
         args: [
           contextHash,
-          voters,
+          allVoters,
           encryptedSalts,
           isPublic,
           BigInt(commitMinutes * 60),
@@ -101,10 +190,7 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
         ],
       });
 
-      // The proposal ID is proposalCount - 1 at the time of creation.
-      // For simplicity, read it after tx.
-      // We'll just redirect to the proposal list.
-      onCreated(0n); // Will be picked up from the list
+      onCreated();
     } catch (e: any) {
       setError(e.shortMessage || e.message || "Transaction failed");
     } finally {
@@ -122,6 +208,9 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
     }) as Promise<string>;
   }
 
+  const isMe = (addr: string) =>
+    address && addr.toLowerCase() === address.toLowerCase();
+
   return (
     <section className="card">
       <h3>New Proposal</h3>
@@ -136,16 +225,43 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
         />
       </label>
 
+      {/* ── Known addresses with on-chain keys ─────────────── */}
+      <label>Voters</label>
+      {knownAddresses.length > 0 ? (
+        <ul className="voter-select">
+          {knownAddresses.map((addr) => (
+            <li key={addr} className="voter-option">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={selectedVoters.has(addr.toLowerCase())}
+                  onChange={() => toggleVoter(addr)}
+                />
+                <span className="mono">
+                  {addr.slice(0, 8)}...{addr.slice(-4)}
+                </span>
+                {isMe(addr) && <span className="badge phase-0">you</span>}
+              </label>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="dim">No addresses with announced keys found.</p>
+      )}
+
       <label>
-        Voter Addresses (one per line or comma-separated)
+        Additional addresses
         <textarea
-          rows={4}
+          rows={2}
           placeholder={"0xAbc...\n0xDef..."}
-          value={voterInput}
-          onChange={(e) => setVoterInput(e.target.value)}
+          value={extraInput}
+          onChange={(e) => setExtraInput(e.target.value)}
         />
       </label>
-      <p className="dim">{voters.length} valid address{voters.length !== 1 ? "es" : ""}</p>
+
+      <p className="dim">
+        {allVoters.length} voter{allVoters.length !== 1 ? "s" : ""} selected
+      </p>
 
       <label className="checkbox-label">
         <input

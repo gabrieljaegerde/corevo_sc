@@ -2,10 +2,7 @@ import nacl from "tweetnacl";
 import { encodeBase64, decodeBase64 } from "tweetnacl-util";
 import { keccak256, encodePacked, hexToBytes, bytesToHex } from "viem";
 
-// ─── X25519 key derivation from wallet signature ─────────────────
-
-const KEY_DERIVATION_MESSAGE =
-  "CoReVo encryption key derivation.\n\nSigning this message derives your X25519 encryption key pair.\nNo funds are transferred.";
+// ─── X25519 key derivation from seed ─────────────────────────────
 
 export interface EncryptionKeyPair {
   publicKey: Uint8Array; // 32 bytes
@@ -13,18 +10,72 @@ export interface EncryptionKeyPair {
 }
 
 /**
- * Derive a deterministic X25519 key pair by signing a fixed message.
- * The signature is hashed to produce the secret key material.
+ * Derive an X25519 key pair from a 32-byte seed.
  */
-export async function deriveKeyPair(
-  signMessage: (args: { message: string }) => Promise<`0x${string}`>
-): Promise<EncryptionKeyPair> {
-  const sig = await signMessage({ message: KEY_DERIVATION_MESSAGE });
-  // Hash the signature to get 32 bytes of key material
-  const hash = keccak256(sig);
-  const secretKey = hexToBytes(hash);
-  const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
-  return { publicKey: keyPair.publicKey, secretKey: keyPair.secretKey };
+export function keyPairFromSeed(seed: Uint8Array): EncryptionKeyPair {
+  const kp = nacl.box.keyPair.fromSecretKey(seed);
+  return { publicKey: kp.publicKey, secretKey: kp.secretKey };
+}
+
+/**
+ * Generate a fresh random 32-byte seed.
+ */
+export function generateSeed(): Uint8Array {
+  return nacl.randomBytes(32);
+}
+
+/**
+ * Encode a seed as a hex string (no 0x prefix) for URL fragment use.
+ */
+export function seedToHex(seed: Uint8Array): string {
+  return bytesToHex(seed).slice(2); // strip 0x
+}
+
+/**
+ * Decode a hex string (with or without 0x prefix) back to a seed.
+ * Returns null if invalid.
+ */
+export function seedFromHex(hex: string): Uint8Array | null {
+  const clean = hex.startsWith("0x") ? hex : `0x${hex}`;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(clean)) return null;
+  return hexToBytes(clean as `0x${string}`);
+}
+
+// ─── URL fragment helpers ────────────────────────────────────────
+
+const FRAGMENT_KEY = "seed";
+
+/**
+ * Read the encryption seed from the URL hash fragment.
+ * Expected format: #seed=<64 hex chars>
+ */
+export function getSeedFromUrl(): Uint8Array | null {
+  const hash = window.location.hash.slice(1); // strip #
+  const params = new URLSearchParams(hash);
+  const raw = params.get(FRAGMENT_KEY);
+  if (!raw) return null;
+  return seedFromHex(raw);
+}
+
+/**
+ * Write the encryption seed into the URL hash fragment (no page reload).
+ */
+export function setSeedInUrl(seed: Uint8Array): void {
+  const hex = seedToHex(seed);
+  window.history.replaceState(null, "", `#${FRAGMENT_KEY}=${hex}`);
+}
+
+/**
+ * Ensure a seed exists in the URL. If not, generate one.
+ * Returns the key pair derived from the seed.
+ */
+export function ensureKeyPair(): EncryptionKeyPair {
+  let seed = getSeedFromUrl();
+  if (!seed) {
+    seed = generateSeed();
+    setSeedInUrl(seed);
+  }
+  return keyPairFromSeed(seed);
 }
 
 // ─── NaCl box encryption (X25519 + XSalsa20-Poly1305) ────────────
@@ -41,7 +92,6 @@ export function encryptSalt(
   const nonce = nacl.randomBytes(nacl.box.nonceLength);
   const encrypted = nacl.box(commonSalt, nonce, recipientPubKey, senderSecretKey);
   if (!encrypted) throw new Error("Encryption failed");
-  // Prepend nonce
   const result = new Uint8Array(nonce.length + encrypted.length);
   result.set(nonce);
   result.set(encrypted, nonce.length);

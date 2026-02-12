@@ -229,6 +229,21 @@ select {
 .phase-2 { background: rgba(76, 175, 132, 0.2); color: var(--success); }
 .public { background: rgba(136, 136, 152, 0.2); color: var(--dim); }
 
+/* ── Voter select ─────────────────────────────────────────────── */
+
+.voter-select {
+  list-style: none;
+  margin-bottom: 12px;
+}
+
+.voter-option {
+  padding: 4px 0;
+}
+
+.voter-option .checkbox-label {
+  font-size: 0.85rem;
+}
+
 /* ── Proposal list ─────────────────────────────────────────────── */
 
 .proposal-list {
@@ -372,3 +387,20 @@ select {
 }
 
 .key-status h3 { margin-bottom: 8px; }
+
+.seed-details { margin: 8px 0; }
+
+.seed-details summary {
+  cursor: pointer;
+  color: var(--dim);
+  font-size: 0.85rem;
+}
+
+.seed-value {
+  display: block;
+  margin-top: 6px;
+  word-break: break-all;
+  font-size: 0.82rem;
+  user-select: all;
+  color: var(--warn);
+}
