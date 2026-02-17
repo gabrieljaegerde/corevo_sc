@@ -14,7 +14,7 @@ describe("Corevo", function () {
 
   const COMMIT_DURATION = 3600; // 1 hour
   const REVEAL_DURATION = 3600; // 1 hour
-  const DUMMY_CONTEXT = ethers.keccak256(ethers.toUtf8Bytes("RFC-42: adopt cats"));
+  const DUMMY_CONTEXT = "RFC-42: adopt cats";
   const COMMON_SALT = ethers.randomBytes(32);
   const EMPTY_SALT = new Uint8Array(0);
 
@@ -260,7 +260,7 @@ describe("Corevo", function () {
     it("should reject reveal before commit deadline", async function () {
       // Create fresh proposal
       await corevo.createProposal(
-        ethers.keccak256(ethers.toUtf8Bytes("fresh")),
+        "fresh",
         [alice.address],
         [EMPTY_SALT],
         true,
@@ -293,7 +293,7 @@ describe("Corevo", function () {
 
     it("should reject reveal from someone who didn't commit", async function () {
       await corevo.createProposal(
-        ethers.keccak256(ethers.toUtf8Bytes("another")),
+        "another",
         [carol.address],
         [EMPTY_SALT],
         true,
@@ -551,7 +551,7 @@ describe("Corevo", function () {
       );
 
       await corevo.createProposal(
-        ethers.keccak256(ethers.toUtf8Bytes("second")),
+        "second",
         [bob.address],
         [EMPTY_SALT],
         true,

@@ -185,7 +185,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
 
   const [
     proposer,
-    contextHash,
+    context,
     phase,
     isPublic,
     commitDeadline,
@@ -374,7 +374,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       <table className="info-table">
         <tbody>
           <tr><td>Proposer</td><td className="mono">{proposer}</td></tr>
-          <tr><td>Context</td><td className="mono">{contextHash}</td></tr>
+          <tr><td>Context</td><td>{context}</td></tr>
           <tr>
             <td>Phase</td>
             <td>

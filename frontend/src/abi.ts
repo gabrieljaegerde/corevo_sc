@@ -28,7 +28,7 @@ export const COREVO_ABI = [
     inputs: [
       { indexed: true, name: "proposalId", type: "uint256" },
       { indexed: true, name: "proposer", type: "address" },
-      { indexed: false, name: "contextHash", type: "bytes32" },
+      { indexed: false, name: "context", type: "string" },
       { indexed: false, name: "isPublic", type: "bool" },
       { indexed: false, name: "commitDeadline", type: "uint64" },
       { indexed: false, name: "revealDeadline", type: "uint64" },
@@ -112,7 +112,7 @@ export const COREVO_ABI = [
   },
   {
     inputs: [
-      { name: "contextHash", type: "bytes32" },
+      { name: "context", type: "string" },
       { name: "voters", type: "address[]" },
       { name: "encryptedSalts", type: "bytes[]" },
       { name: "isPublic", type: "bool" },
@@ -185,7 +185,7 @@ export const COREVO_ABI = [
     name: "proposals",
     outputs: [
       { name: "proposer", type: "address" },
-      { name: "contextHash", type: "bytes32" },
+      { name: "context", type: "string" },
       { name: "phase", type: "uint8" },
       { name: "isPublic", type: "bool" },
       { name: "commitDeadline", type: "uint64" },

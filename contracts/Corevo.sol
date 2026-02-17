@@ -29,7 +29,7 @@ contract Corevo {
 
     struct Proposal {
         address proposer;
-        bytes32 contextHash;
+        string  context;
         Phase   phase;
         bool    isPublic;          // if true, commonSalt is public knowledge
         uint64  commitDeadline;
@@ -70,7 +70,7 @@ contract Corevo {
     event ProposalCreated(
         uint256 indexed proposalId,
         address indexed proposer,
-        bytes32 contextHash,
+        string  context,
         bool    isPublic,
         uint64  commitDeadline,
         uint64  revealDeadline
@@ -134,9 +134,7 @@ contract Corevo {
     // ─── Phase 2: Proposal Creation ─────────────────────────────────
 
     /// @notice Create a new commit-reveal vote.
-    /// @param contextHash  Hash identifying the subject being voted on
-    ///                     (e.g. keccak256 of a document, git commit, or
-    ///                     arbitrary description).
+    /// @param context      Short description of what is being voted on.
     /// @param voters       Addresses eligible to vote.
     /// @param encryptedSalts Per-voter encrypted common salts (same order as
     ///                     `voters`). For public proposals pass the plaintext
@@ -147,7 +145,7 @@ contract Corevo {
     /// @param revealDuration  Seconds after commit phase until reveal ends.
     /// @return proposalId  The id of the newly created proposal.
     function createProposal(
-        bytes32   contextHash,
+        string    calldata context,
         address[] calldata voters,
         bytes[]   calldata encryptedSalts,
         bool      isPublic,
@@ -162,7 +160,7 @@ contract Corevo {
 
         Proposal storage p = proposals[proposalId];
         p.proposer       = msg.sender;
-        p.contextHash    = contextHash;
+        p.context        = context;
         p.phase          = Phase.Commit;
         p.isPublic       = isPublic;
         p.commitDeadline = uint64(block.timestamp) + commitDuration;
@@ -179,7 +177,7 @@ contract Corevo {
         emit ProposalCreated(
             proposalId,
             msg.sender,
-            contextHash,
+            context,
             isPublic,
             p.commitDeadline,
             p.revealDeadline

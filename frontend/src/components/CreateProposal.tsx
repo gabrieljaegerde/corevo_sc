@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAccount, useWriteContract, usePublicClient, useReadContract } from "wagmi";
 import { waitForTransactionReceipt } from "@wagmi/core";
-import { keccak256, toHex, bytesToHex } from "viem";
+import { bytesToHex } from "viem";
 import { COREVO_ABI } from "../abi";
 import { CONTRACT_ADDRESS, config } from "../wagmi";
 import {
@@ -151,7 +151,6 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
     setError("");
 
     try {
-      const contextHash = keccak256(toHex(context));
       const commonSalt = nacl.randomBytes(32);
       const commonSaltAsHex = bytesToHex(commonSalt);
 
@@ -184,7 +183,7 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
         abi: COREVO_ABI,
         functionName: "createProposal",
         args: [
-          contextHash,
+          context,
           allVoters,
           encryptedSalts,
           isPublic,
