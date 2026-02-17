@@ -54,13 +54,12 @@ function ProposalRow({ id, onSelect }: { id: bigint; onSelect: (id: bigint) => v
   const [proposer, , phase, , commitDeadline, revealDeadline, voterCount, commitCount, revealCount] = data;
   const now = BigInt(Math.floor(Date.now() / 1000));
 
-  // Compute effective phase purely from deadlines (same as ProposalDetail).
-  // The contract auto-finishes when all committers reveal, but we show
-  // "Reveal" as long as the reveal deadline hasn't passed yet.
+  // Compute effective phase from deadlines + on-chain phase.
+  // The reveal deadline is soft — show "Reveal" until finalized on-chain.
   let effectivePhase: number;
   if (now <= commitDeadline) {
     effectivePhase = 0;
-  } else if (now <= revealDeadline) {
+  } else if (Number(phase) < 2) {
     effectivePhase = 1;
   } else {
     effectivePhase = 2;

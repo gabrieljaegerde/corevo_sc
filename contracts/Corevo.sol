@@ -113,7 +113,6 @@ contract Corevo {
     error NotAVoter();
     error AlreadyCommitted();
     error NotInRevealPhase();
-    error RevealPhaseEnded();
     error NotCommitted();
     error AlreadyRevealed();
     error AlreadyFinished();
@@ -211,6 +210,9 @@ contract Corevo {
     ///         on-chain during the reveal phase — the vote itself and the
     ///         common salt stay off-chain.
     ///
+    ///         The reveal deadline is SOFT: voters may reveal after the
+    ///         deadline as long as the proposal has not been finalized.
+    ///
     ///         Group members can verify your vote off-chain by trying all 3
     ///         vote options:
     ///           for v in {Aye, Nay, Abstain}:
@@ -224,7 +226,6 @@ contract Corevo {
         // Transition Commit → Reveal when commit deadline passes
         _ensureRevealPhase(p);
 
-        if (block.timestamp > p.revealDeadline)                   revert RevealPhaseEnded();
         if (commitments[proposalId][msg.sender] == bytes32(0))    revert NotCommitted();
         if (revealedSalts[proposalId][msg.sender] != bytes32(0))  revert AlreadyRevealed();
         if (oneTimeSalt == bytes32(0))                             revert ZeroSalt();
@@ -283,11 +284,13 @@ contract Corevo {
     }
 
     /// @notice Check whether the proposal currently accepts salt reveals.
+    ///         The reveal deadline is soft — reveals are accepted until the
+    ///         proposal is finalized (either by all committers revealing or
+    ///         by someone calling finalizeProposal after the deadline).
     function isRevealOpen(uint256 proposalId) external view returns (bool) {
         Proposal storage p = proposals[proposalId];
         return p.phase != Phase.Finished
-            && block.timestamp > p.commitDeadline
-            && block.timestamp <= p.revealDeadline;
+            && block.timestamp > p.commitDeadline;
     }
 
     // ─── Internal ────────────────────────────────────────────────────

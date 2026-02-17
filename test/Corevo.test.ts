@@ -278,11 +278,11 @@ describe("Corevo", function () {
       ).to.be.revertedWithCustomError(corevo, "NotInRevealPhase");
     });
 
-    it("should reject reveal after reveal deadline", async function () {
+    it("should allow reveal after reveal deadline (soft deadline)", async function () {
       await time.increase(REVEAL_DURATION + 1);
       await expect(
         corevo.connect(alice).revealSalt(0, oneTimeSaltAlice)
-      ).to.be.revertedWithCustomError(corevo, "RevealPhaseEnded");
+      ).to.emit(corevo, "SaltRevealed");
     });
 
     it("should reject zero salt", async function () {
@@ -526,8 +526,14 @@ describe("Corevo", function () {
       expect(await corevo.isRevealOpen(0)).to.be.true;
     });
 
-    it("should return false after reveal deadline", async function () {
+    it("should return true after reveal deadline (soft deadline)", async function () {
       await time.increase(COMMIT_DURATION + REVEAL_DURATION + 2);
+      expect(await corevo.isRevealOpen(0)).to.be.true;
+    });
+
+    it("should return false after finalization", async function () {
+      await time.increase(COMMIT_DURATION + REVEAL_DURATION + 2);
+      await corevo.finalizeProposal(0);
       expect(await corevo.isRevealOpen(0)).to.be.false;
     });
   });

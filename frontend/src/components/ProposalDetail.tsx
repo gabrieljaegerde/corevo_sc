@@ -197,14 +197,14 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
 
   const now = BigInt(Math.floor(Date.now() / 1000));
 
-  // Compute effective phase from deadlines.
-  // The contract auto-finishes when all committers reveal, but we show
-  // "Reveal" as long as the reveal deadline hasn't passed yet.
+  // Compute effective phase from deadlines + on-chain phase.
+  // The reveal deadline is soft — voters can still reveal after it.
+  // We show "Reveal" until the proposal is finalized on-chain.
   let effectivePhase: number;
   if (now <= commitDeadline) {
     effectivePhase = 0; // Commit
-  } else if (now <= revealDeadline) {
-    effectivePhase = 1; // Reveal
+  } else if (Number(phase) < 2) {
+    effectivePhase = 1; // Reveal (soft deadline — open until finalized)
   } else {
     effectivePhase = 2; // Finished
   }
@@ -232,8 +232,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     !hasRevealed &&
     hasCommitted &&
     effectivePhase === 1 &&
-    now > commitDeadline &&
-    now <= revealDeadline;
+    now > commitDeadline;
   const canFinalize = effectivePhase !== 2 && now > revealDeadline;
 
   // ─── Actions ───────────────────────────────────────────────────
@@ -395,10 +394,10 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
             </td>
           </tr>
           <tr>
-            <td>Reveal deadline</td>
+            <td>Reveal deadline (soft)</td>
             <td>
               {formatRemaining(revealDeadline) === "ended"
-                ? <span className="dim">ended</span>
+                ? <span className="dim">ended — late reveals still accepted</span>
                 : <>{formatRemaining(revealDeadline)} remaining</>
               }
               {" "}<span className="dim">({new Date(Number(revealDeadline) * 1000).toLocaleString()})</span>

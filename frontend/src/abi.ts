@@ -10,7 +10,6 @@ export const COREVO_ABI = [
   { inputs: [], name: "NotCommitted", type: "error" },
   { inputs: [], name: "NotInCommitPhase", type: "error" },
   { inputs: [], name: "NotInRevealPhase", type: "error" },
-  { inputs: [], name: "RevealPhaseEnded", type: "error" },
   { inputs: [], name: "RevealPhaseNotEnded", type: "error" },
   { inputs: [], name: "ZeroPubKey", type: "error" },
   { inputs: [], name: "ZeroSalt", type: "error" },
