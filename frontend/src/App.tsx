@@ -6,14 +6,16 @@ import CreateProposal from "./components/CreateProposal";
 import ProposalList from "./components/ProposalList";
 import ProposalDetail from "./components/ProposalDetail";
 import { ensureKeyPair } from "./crypto";
+import Contacts from "./components/Contacts";
 
-type Tab = "proposals" | "create";
+type Tab = "proposals" | "create" | "contacts";
 
 export default function App() {
   const { isConnected } = useAccount();
   const [tab, setTab] = useState<Tab>("proposals");
   const [selectedProposal, setSelectedProposal] = useState<bigint | null>(null);
   const [urlCopied, setUrlCopied] = useState(false);
+  const [contactsVersion, setContactsVersion] = useState(0);
 
   // Derive key pair from URL seed (generates one if missing)
   const keyPair = useMemo(() => ensureKeyPair(), []);
@@ -50,6 +52,12 @@ export default function App() {
             >
               New Proposal
             </button>
+            <button
+              className={tab === "contacts" ? "active" : ""}
+              onClick={() => setTab("contacts")}
+            >
+              Contacts
+            </button>
           </nav>
 
           <main>
@@ -63,14 +71,18 @@ export default function App() {
               />
             )}
             {tab === "proposals" && selectedProposal === null && (
-              <ProposalList onSelect={setSelectedProposal} />
+              <ProposalList key={contactsVersion} onSelect={setSelectedProposal} />
             )}
             {tab === "proposals" && selectedProposal !== null && (
               <ProposalDetail
+                key={contactsVersion}
                 proposalId={selectedProposal}
                 keyPair={keyPair}
                 onBack={() => setSelectedProposal(null)}
               />
+            )}
+            {tab === "contacts" && (
+              <Contacts onUpdate={() => setContactsVersion((v) => v + 1)} />
             )}
           </main>
         </>

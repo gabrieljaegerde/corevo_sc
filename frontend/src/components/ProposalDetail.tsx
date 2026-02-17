@@ -21,6 +21,7 @@ import {
 } from "../crypto";
 import { storeOneTimeSalt, getOneTimeSalt } from "../store";
 import { bytesToHex, hexToBytes } from "viem";
+import AddressLabel from "./AddressLabel";
 
 const PHASE_LABELS = ["Commit", "Reveal", "Finished"] as const;
 const ZERO_BYTES32 =
@@ -372,7 +373,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
 
       <table className="info-table">
         <tbody>
-          <tr><td>Proposer</td><td className="mono">{proposer}</td></tr>
+          <tr><td>Proposer</td><td><AddressLabel address={proposer} full /></td></tr>
           <tr><td>Context</td><td>{context}</td></tr>
           <tr>
             <td>Phase</td>
@@ -556,7 +557,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
             <tbody>
               {voters.map((v) => (
                 <tr key={v}>
-                  <td className="mono">{v.slice(0, 8)}...{v.slice(-4)}</td>
+                  <td><AddressLabel address={v} /></td>
                   <td>
                     {tally[v] !== null && tally[v] !== undefined
                       ? VOTE_LABELS[tally[v]!]

@@ -1,6 +1,7 @@
 import { useReadContract } from "wagmi";
 import { COREVO_ABI } from "../abi";
 import { CONTRACT_ADDRESS } from "../wagmi";
+import AddressLabel from "./AddressLabel";
 
 const PHASE_LABELS = ["Commit", "Reveal", "Finished"] as const;
 
@@ -73,7 +74,7 @@ function ProposalRow({ id, onSelect }: { id: bigint; onSelect: (id: bigint) => v
         {Number(commitCount)}/{Number(voterCount)} committed,{" "}
         {Number(revealCount)}/{Number(commitCount)} revealed
       </span>
-      <span className="dim proposer">by {proposer.slice(0, 8)}...</span>
+      <span className="dim proposer">by <AddressLabel address={proposer} /></span>
     </li>
   );
 }

@@ -10,6 +10,7 @@ import {
   type EncryptionKeyPair,
 } from "../crypto";
 import nacl from "tweetnacl";
+import AddressLabel from "./AddressLabel";
 
 const ZERO = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -240,9 +241,7 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
                   checked={selectedVoters.has(addr.toLowerCase())}
                   onChange={() => toggleVoter(addr)}
                 />
-                <span className="mono">
-                  {addr.slice(0, 8)}...{addr.slice(-4)}
-                </span>
+                <AddressLabel address={addr} />
                 {isMe(addr) && <span className="badge phase-0">you</span>}
               </label>
             </li>
