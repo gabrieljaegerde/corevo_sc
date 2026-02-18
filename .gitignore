@@ -6,3 +6,4 @@ typechain-types/
 coverage/
 .env
 ignition/deployments/
+frontend/dist/
