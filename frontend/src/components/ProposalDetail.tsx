@@ -179,7 +179,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     return (
       <section className="card">
         <button className="back" onClick={onBack}>Back</button>
-        <p>Loading...</p>
+        <p className="dim"><span className="spinner" />Loading...</p>
       </section>
     );
   }
@@ -431,7 +431,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
         </div>
       ) : saltLoading ? (
         <div className="salt-section">
-          <p className="dim">Loading common salt from invitation...</p>
+          <p className="dim"><span className="spinner" />Loading common salt from invitation...</p>
           <details className="seed-details">
             <summary>Enter manually instead</summary>
             <input
@@ -481,7 +481,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
             ))}
           </div>
           <button className="primary" onClick={handleCommit} disabled={busy}>
-            {busy ? "Submitting..." : "Commit Vote"}
+            {busy ? <><span className="spinner" />Submitting...</> : "Commit Vote"}
           </button>
         </div>
       )}
@@ -501,7 +501,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
             Your one-time salt: <code>{storedOts}</code>
           </p>
           <button className="primary" onClick={handleReveal} disabled={busy}>
-            {busy ? "Submitting..." : "Reveal Salt"}
+            {busy ? <><span className="spinner" />Submitting...</> : "Reveal Salt"}
           </button>
         </div>
       )}
@@ -521,7 +521,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       {canFinalize && (
         <div className="action-section">
           <button onClick={handleFinalize} disabled={busy}>
-            {busy ? "Finalizing..." : "Finalize Proposal"}
+            {busy ? <><span className="spinner" />Finalizing...</> : "Finalize Proposal"}
           </button>
         </div>
       )}

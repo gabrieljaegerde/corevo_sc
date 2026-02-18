@@ -37,6 +37,7 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
 
   // Known addresses with announced keys
   const [knownAddresses, setKnownAddresses] = useState<`0x${string}`[]>([]);
+  const [loadingVoters, setLoadingVoters] = useState(true);
   // Selected voters (checkboxes)
   const [selectedVoters, setSelectedVoters] = useState<Set<string>>(new Set());
   // Additional manually entered addresses
@@ -75,6 +76,8 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
         setKnownAddresses(addrs);
       } catch {
         // Event fetching may fail on some RPCs
+      } finally {
+        setLoadingVoters(false);
       }
     })();
   }, [client]);
@@ -231,7 +234,9 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
 
       {/* ── Known addresses with on-chain keys ─────────────── */}
       <label>Voters</label>
-      {knownAddresses.length > 0 ? (
+      {loadingVoters ? (
+        <p className="dim"><span className="spinner" />Loading registered voters...</p>
+      ) : knownAddresses.length > 0 ? (
         <ul className="voter-select">
           {knownAddresses.map((addr) => (
             <li key={addr} className="voter-option">
@@ -289,7 +294,7 @@ export default function CreateProposal({ keyPair, onCreated }: Props) {
       </div>
 
       <button onClick={handleCreate} disabled={busy || !keyPair}>
-        {busy ? "Creating..." : "Create Proposal"}
+        {busy ? <><span className="spinner" />Creating...</> : "Create Proposal"}
       </button>
 
       {error && <p className="error">{error}</p>}

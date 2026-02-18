@@ -109,7 +109,7 @@ export default function KeyStatus({ keyPair }: Props) {
 
       <button className="primary" onClick={handleAnnounce} disabled={busy} style={{ marginTop: 10 }}>
         {busy
-          ? "Confirming..."
+          ? <><span className="spinner" />Confirming...</>
           : hasOnChainKey
             ? "Update Key On-Chain"
             : "Announce Key On-Chain"}

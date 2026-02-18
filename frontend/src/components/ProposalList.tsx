@@ -50,7 +50,7 @@ function ProposalRow({ id, onSelect }: { id: bigint; onSelect: (id: bigint) => v
     args: [id],
   });
 
-  if (!data) return <li className="loading">Loading #{id.toString()}...</li>;
+  if (!data) return <li className="loading"><span className="spinner" />Loading #{id.toString()}...</li>;
 
   const [proposer, , phase, , commitDeadline, revealDeadline, voterCount, commitCount, revealCount] = data;
   const now = BigInt(Math.floor(Date.now() / 1000));
