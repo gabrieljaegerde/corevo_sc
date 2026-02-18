@@ -319,6 +319,23 @@ select {
 
 .proposer { margin-left: auto; }
 
+.proposals-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.proposals-header h3 {
+  margin: 0;
+}
+
+.filter-toggle {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .loading { color: var(--dim); padding: 8px; }
 
 @keyframes spin {
