@@ -10,8 +10,8 @@ import { COREVO_ABI } from "../abi";
 import { CONTRACT_ADDRESS, config } from "../wagmi";
 import {
   computeCommitment,
+  deriveOneTimeSalt,
   verifyVote,
-  randomSalt,
   decryptSalt,
   bytes32ToPubKey,
   VOTE,
@@ -19,7 +19,6 @@ import {
   type EncryptionKeyPair,
   type VoteValue,
 } from "../crypto";
-import { storeOneTimeSalt, getOneTimeSalt } from "../store";
 import { bytesToHex, hexToBytes } from "viem";
 import AddressLabel from "./AddressLabel";
 
@@ -212,13 +211,14 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
 
   const hasCommitted = myCommitment && myCommitment !== ZERO_BYTES32;
   const hasRevealed = myRevealedSalt && myRevealedSalt !== ZERO_BYTES32;
-  const storedOts = address
-    ? getOneTimeSalt(proposalId, address)
+  // Deterministically derive the one-time salt from the URL seed — same on any device
+  const derivedOts = (keyPair && address)
+    ? deriveOneTimeSalt(keyPair.seed, proposalId, address)
     : null;
-  // Derive own vote: use on-chain revealedSalt if available, else localStorage
+  // Derive own vote: use on-chain revealedSalt if available, else derived OTS
   const knownOts = hasRevealed
     ? (myRevealedSalt as string)
-    : storedOts;
+    : derivedOts;
   const cs = commonSaltInput.trim();
   const myVote = (hasCommitted && knownOts && cs.length === 66)
     ? verifyVote(
@@ -239,7 +239,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
   // ─── Actions ───────────────────────────────────────────────────
 
   async function handleCommit() {
-    if (!address) return;
+    if (!address || !keyPair) return;
     const cs = commonSaltInput.trim() as `0x${string}`;
     if (!cs || cs.length !== 66) {
       setError("Enter the common salt (0x... 66 chars).");
@@ -248,7 +248,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     setBusy(true);
     setError("");
     try {
-      const ots = randomSalt();
+      const ots = deriveOneTimeSalt(keyPair.seed, proposalId, address);
       const commitment = computeCommitment(selectedVote, ots, cs);
 
       const hash = await writeContractAsync({
@@ -259,7 +259,6 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       });
       await waitForTransactionReceipt(config, { hash });
 
-      storeOneTimeSalt(proposalId, address, ots);
       await Promise.all([refetchProposal(), refetchCommitment(), refetchProgress()]);
     } catch (e: any) {
       setError(e.shortMessage || e.message);
@@ -269,7 +268,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
   }
 
   async function handleReveal() {
-    if (!address || !storedOts) return;
+    if (!address || !derivedOts) return;
     setBusy(true);
     setError("");
     try {
@@ -277,7 +276,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
         address: CONTRACT_ADDRESS,
         abi: COREVO_ABI,
         functionName: "revealSalt",
-        args: [proposalId, storedOts as `0x${string}`],
+        args: [proposalId, derivedOts as `0x${string}`],
       });
       await waitForTransactionReceipt(config, { hash });
       await Promise.all([refetchProposal(), refetchReveal(), refetchProgress()]);
@@ -414,6 +413,29 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
         </tbody>
       </table>
 
+      {/* ── Voter status ──────────────────────────────────────── */}
+      {voters && voters.length > 0 && (
+        <table className="info-table vote-table">
+          <thead>
+            <tr>
+              <th>Voter</th>
+              <th>Committed</th>
+              <th>Revealed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {voters.map((v) => (
+              <VoterStatusRow
+                key={v}
+                voter={v}
+                proposalId={proposalId}
+                currentAddress={address}
+              />
+            ))}
+          </tbody>
+        </table>
+      )}
+
       {/* ── Common salt input ─────────────────────────────────── */}
       {decryptedCommonSalt ? (
         <div className="salt-section">
@@ -494,23 +516,13 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       )}
 
       {/* ── Reveal ────────────────────────────────────────────── */}
-      {canReveal && storedOts && (
+      {canReveal && (
         <div className="action-section">
           <h4>Reveal Your Salt</h4>
-          <p className="dim">
-            Your one-time salt: <code>{storedOts}</code>
-          </p>
           <button className="primary" onClick={handleReveal} disabled={busy}>
             {busy ? <><span className="spinner" />Submitting...</> : "Reveal Salt"}
           </button>
         </div>
-      )}
-
-      {canReveal && !storedOts && (
-        <p className="warn">
-          One-time salt not found in browser storage. If you committed from
-          another device, you cannot reveal from here.
-        </p>
       )}
 
       {hasRevealed && (
@@ -572,5 +584,59 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
 
       {error && <p className="error">{error}</p>}
     </section>
+  );
+}
+
+function VoterStatusRow({
+  voter,
+  proposalId,
+  currentAddress,
+}: {
+  voter: string;
+  proposalId: bigint;
+  currentAddress: string | undefined;
+}) {
+  const { data: commitment } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: COREVO_ABI,
+    functionName: "commitments",
+    args: [proposalId, voter as `0x${string}`],
+  });
+
+  const { data: revealedSalt } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: COREVO_ABI,
+    functionName: "revealedSalts",
+    args: [proposalId, voter as `0x${string}`],
+  });
+
+  const ZERO = "0x0000000000000000000000000000000000000000000000000000000000000000";
+  const hasCommitted = commitment && commitment !== ZERO;
+  const hasRevealed = revealedSalt && revealedSalt !== ZERO;
+  const isMe = currentAddress?.toLowerCase() === voter.toLowerCase();
+
+  return (
+    <tr className={isMe ? "voter-me" : ""}>
+      <td>
+        <AddressLabel address={voter} />
+        {isMe && <span className="badge phase-0" style={{ marginLeft: 6 }}>you</span>}
+      </td>
+      <td>
+        {commitment === undefined
+          ? <span className="spinner" />
+          : hasCommitted
+            ? <span className="success">✓</span>
+            : <span className="dim">—</span>
+        }
+      </td>
+      <td>
+        {revealedSalt === undefined
+          ? <span className="spinner" />
+          : hasRevealed
+            ? <span className="success">✓</span>
+            : <span className="dim">—</span>
+        }
+      </td>
+    </tr>
   );
 }

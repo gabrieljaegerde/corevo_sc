@@ -7,6 +7,7 @@ import { keccak256, encodePacked, hexToBytes, bytesToHex } from "viem";
 export interface EncryptionKeyPair {
   publicKey: Uint8Array; // 32 bytes
   secretKey: Uint8Array; // 32 bytes
+  seed: Uint8Array;      // 32 bytes — kept for deterministic oneTimeSalt derivation
 }
 
 /**
@@ -14,7 +15,7 @@ export interface EncryptionKeyPair {
  */
 export function keyPairFromSeed(seed: Uint8Array): EncryptionKeyPair {
   const kp = nacl.box.keyPair.fromSecretKey(seed);
-  return { publicKey: kp.publicKey, secretKey: kp.secretKey };
+  return { publicKey: kp.publicKey, secretKey: kp.secretKey, seed };
 }
 
 /**
@@ -157,6 +158,25 @@ export function verifyVote(
 
 export function randomSalt(): `0x${string}` {
   return bytesToHex(nacl.randomBytes(32));
+}
+
+/**
+ * Derive a deterministic one-time salt from the user's seed, proposalId, and
+ * wallet address. Reproducible on any device that has the URL seed.
+ *
+ * oneTimeSalt = keccak256(seed ‖ proposalId ‖ walletAddress)
+ */
+export function deriveOneTimeSalt(
+  seed: Uint8Array,
+  proposalId: bigint,
+  walletAddress: string
+): `0x${string}` {
+  return keccak256(
+    encodePacked(
+      ["bytes32", "uint256", "address"],
+      [bytesToHex(seed), proposalId, walletAddress as `0x${string}`]
+    )
+  );
 }
 
 export function pubKeyToBytes32(pubKey: Uint8Array): `0x${string}` {
