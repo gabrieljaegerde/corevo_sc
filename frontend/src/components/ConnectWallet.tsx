@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
+import type { Connector } from "wagmi";
 import { paseoTestnet, kusamaHub } from "../wagmi";
 
 export default function ConnectWallet() {
@@ -6,22 +8,47 @@ export default function ConnectWallet() {
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
+  const [available, setAvailable] = useState<Connector[] | null>(null);
+
+  useEffect(() => {
+    async function resolve() {
+      const seen = new Set<unknown>();
+      const result: Connector[] = [];
+      for (const connector of connectors) {
+        try {
+          const provider = await connector.getProvider();
+          if (provider && !seen.has(provider)) {
+            seen.add(provider);
+            result.push(connector);
+          }
+        } catch {}
+      }
+      setAvailable(result);
+    }
+    resolve();
+  }, [connectors]);
 
   if (!isConnected) {
     return (
       <div className="connect-wallet">
-        {connectors.map((connector) => (
-          <button
-            key={connector.uid}
-            onClick={() => connect({ connector, chainId: paseoTestnet.id })}
-            className="connector-btn"
-          >
-            {connector.icon && (
-              <img src={connector.icon} alt="" className="connector-icon" />
-            )}
-            {connector.name}
-          </button>
-        ))}
+        {available === null ? (
+          <span className="dim"><span className="spinner" />Detecting wallets...</span>
+        ) : available.length === 0 ? (
+          <span className="dim">No wallet detected</span>
+        ) : (
+          available.map((connector) => (
+            <button
+              key={connector.uid}
+              className="connector-btn"
+              onClick={() => connect({ connector, chainId: paseoTestnet.id })}
+            >
+              {connector.icon && (
+                <img src={connector.icon} alt="" className="connector-icon" />
+              )}
+              {connector.name}
+            </button>
+          ))
+        )}
       </div>
     );
   }
@@ -35,7 +62,7 @@ export default function ConnectWallet() {
         value={chain?.id}
         onChange={(e) => switchChain({ chainId: Number(e.target.value) })}
       >
-        <option value={paseoTestnet.id}>Polkadot Hub TestNet (Paseo)</option>
+        <option value={paseoTestnet.id}>Paseo Testnet</option>
         <option value={kusamaHub.id}>Kusama Hub</option>
       </select>
       <button onClick={() => disconnect()}>Disconnect</button>

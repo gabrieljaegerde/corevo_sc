@@ -1,5 +1,4 @@
 import { http, createConfig } from "wagmi";
-import { injected } from "wagmi/connectors";
 import { defineChain } from "viem";
 
 export const paseoTestnet = defineChain({
@@ -34,8 +33,9 @@ export const kusamaHub = defineChain({
 });
 
 export const config = createConfig({
+  multiInjectedProviderDiscovery: true, // EIP-6963: wallets announce themselves, no manual detection
   chains: [paseoTestnet, kusamaHub],
-  connectors: [injected()],
+  connectors: [],
   transports: {
     [paseoTestnet.id]: http(),
     [kusamaHub.id]: http(),
