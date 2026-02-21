@@ -90,7 +90,7 @@ export default function App() {
 
       {!isConnected && (
         <div className="onboarding">
-          <h2>Private group voting on Polkadot</h2>
+          <h2>Private group voting on Kusama</h2>
           <p className="onboarding-intro">
             CoReVo uses commit-reveal cryptography so votes stay hidden until
             everyone has voted. Only your group can see the results.
