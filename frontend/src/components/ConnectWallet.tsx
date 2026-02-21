@@ -14,8 +14,12 @@ export default function ConnectWallet() {
           <button
             key={connector.uid}
             onClick={() => connect({ connector, chainId: paseoTestnet.id })}
+            className="connector-btn"
           >
-            Connect {connector.name}
+            {connector.icon && (
+              <img src={connector.icon} alt="" className="connector-icon" />
+            )}
+            {connector.name}
           </button>
         ))}
       </div>
