@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { useAccount, useWriteContract, usePublicClient, useReadContract } from "wagmi";
+import { useAccount, useChainId, useWriteContract, usePublicClient, useReadContract } from "wagmi";
 import { waitForTransactionReceipt } from "@wagmi/core";
 import { bytesToHex } from "viem";
 import { COREVO_ABI } from "../abi";
-import { CONTRACT_ADDRESS, config } from "../wagmi";
+import { getContractAddress, config } from "../wagmi";
 import {
   encryptSalt,
   bytes32ToPubKey,
@@ -21,6 +21,8 @@ interface Props {
 
 export default function CreateProposal({ keyPair, onCreated }: Props) {
   const { address } = useAccount();
+  const chainId = useChainId();
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
   const { writeContractAsync } = useWriteContract();
   const client = usePublicClient();
 

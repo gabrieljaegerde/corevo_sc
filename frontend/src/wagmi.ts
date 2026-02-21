@@ -42,7 +42,13 @@ export const config = createConfig({
   },
 });
 
-// Contract address — update after deployment
-export const CONTRACT_ADDRESS =
-  (import.meta.env.VITE_CONTRACT_ADDRESS as `0x${string}`) ||
-  "0x0000000000000000000000000000000000000000";
+const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = {
+  [paseoTestnet.id]: import.meta.env.VITE_CONTRACT_ADDRESS_PASEO as `0x${string}`,
+  [kusamaHub.id]:    import.meta.env.VITE_CONTRACT_ADDRESS_KUSAMA as `0x${string}`,
+};
+
+const ZERO = "0x0000000000000000000000000000000000000000" as const;
+
+export function getContractAddress(chainId: number | undefined): `0x${string}` {
+  return (chainId ? CONTRACT_ADDRESSES[chainId] : undefined) ?? ZERO;
+}

@@ -1,7 +1,7 @@
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useChainId, useReadContract, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "@wagmi/core";
 import { COREVO_ABI } from "../abi";
-import { CONTRACT_ADDRESS, config } from "../wagmi";
+import { getContractAddress, config } from "../wagmi";
 import { pubKeyToBytes32, seedToHex, getSeedFromUrl, type EncryptionKeyPair } from "../crypto";
 import { useState } from "react";
 
@@ -11,6 +11,8 @@ interface Props {
 
 export default function KeyStatus({ keyPair }: Props) {
   const { address } = useAccount();
+  const chainId = useChainId();
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
   const { writeContractAsync } = useWriteContract();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");

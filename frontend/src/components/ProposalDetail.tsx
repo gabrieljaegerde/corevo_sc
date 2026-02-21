@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import {
   useAccount,
+  useChainId,
   useReadContract,
   useWriteContract,
   usePublicClient,
 } from "wagmi";
 import { waitForTransactionReceipt } from "@wagmi/core";
 import { COREVO_ABI } from "../abi";
-import { CONTRACT_ADDRESS, config } from "../wagmi";
+import { getContractAddress, config } from "../wagmi";
 import {
   computeCommitment,
   deriveOneTimeSalt,
@@ -48,6 +49,8 @@ interface Props {
 
 export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
   const { address } = useAccount();
+  const chainId = useChainId();
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
   const client = usePublicClient();
   const { writeContractAsync } = useWriteContract();
 
@@ -430,6 +433,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
                 voter={v}
                 proposalId={proposalId}
                 currentAddress={address}
+                contractAddress={CONTRACT_ADDRESS}
               />
             ))}
           </tbody>
@@ -591,20 +595,22 @@ function VoterStatusRow({
   voter,
   proposalId,
   currentAddress,
+  contractAddress,
 }: {
   voter: string;
   proposalId: bigint;
   currentAddress: string | undefined;
+  contractAddress: `0x${string}`;
 }) {
   const { data: commitment } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: contractAddress,
     abi: COREVO_ABI,
     functionName: "commitments",
     args: [proposalId, voter as `0x${string}`],
   });
 
   const { data: revealedSalt } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: contractAddress,
     abi: COREVO_ABI,
     functionName: "revealedSalts",
     args: [proposalId, voter as `0x${string}`],

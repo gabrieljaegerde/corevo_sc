@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useChainId, useReadContract } from "wagmi";
 import { COREVO_ABI } from "../abi";
-import { CONTRACT_ADDRESS } from "../wagmi";
+import { getContractAddress } from "../wagmi";
 import AddressLabel from "./AddressLabel";
 
 const PHASE_LABELS = ["Commit", "Reveal", "Finished"] as const;
@@ -12,6 +12,8 @@ interface Props {
 
 export default function ProposalList({ onSelect }: Props) {
   const [myOnly, setMyOnly] = useState(true);
+  const chainId = useChainId();
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
 
   const { data: count } = useReadContract({
     address: CONTRACT_ADDRESS,
@@ -64,6 +66,8 @@ function ProposalRow({
   myOnly: boolean;
 }) {
   const { address } = useAccount();
+  const chainId = useChainId();
+  const CONTRACT_ADDRESS = getContractAddress(chainId);
 
   const { data } = useReadContract({
     address: CONTRACT_ADDRESS,
