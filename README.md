@@ -12,7 +12,7 @@ CoReVo enables confidential voting for small groups. Votes are hidden from outsi
 
 1. **Key Announcement** — participants register X25519 encryption public keys on-chain
 2. **Proposal Creation** — proposer defines a voting context, invites voters, and distributes an encrypted common salt to each voter
-3. **Commit** — voters submit `keccak256(vote || oneTimeSalt || commonSalt)` on-chain
+3. **Commit** — voters submit `keccak256(vote || oneTimeSalt || commonSalt)` on-chain. Voters may re-commit to change their vote before the commit deadline.
 4. **Reveal** — voters publish only their `oneTimeSalt` on-chain
 
 ### Why deadlines?
@@ -20,7 +20,7 @@ CoReVo enables confidential voting for small groups. Votes are hidden from outsi
 The original CoReVo has no on-chain deadline enforcement — the reveal phase relies on social pressure. Since smart contracts can enforce time constraints, this implementation adds a **commit deadline** and a **reveal deadline**:
 
 - **Commit deadline** — voters must submit their commitments before this time. After it passes, no new commitments are accepted and the reveal phase begins.
-- **Reveal deadline** — voters must reveal their one-time salt before this time. After it passes, anyone can call `finalizeProposal()` to close the vote. Voters who didn't reveal in time simply count as non-participants.
+- **Reveal deadline (soft)** — serves as a target for when voters should reveal. Unlike the commit deadline, this is not strictly enforced — voters can still reveal after it passes, as long as the proposal has not been finalized. Anyone can call `finalizeProposal()` after the reveal deadline to close the vote. Voters who didn't reveal simply count as non-participants.
 
 This removes the need for social coordination and prevents a voter from stalling the process by refusing to reveal.
 
@@ -38,31 +38,32 @@ CoReVo supports two modes:
 
 The dApp generates a random 32-byte encryption seed on first visit and stores it in the URL hash fragment (e.g. `#seed=a1b2c3...`). The X25519 key pair is derived from this seed. Since the fragment is never sent to a server, the seed stays entirely in the browser.
 
-Users save their key by **bookmarking the URL**. Browser bookmark sync provides cross-device portability. On IPFS there is no server to leak it to.
+Users save their key by **bookmarking the URL**. The seed is also the source of truth for one-time salts — they are derived deterministically as `keccak256(seed || proposalId || walletAddress)`, so any device with the URL can commit and reveal without storing anything locally.
 
-This is a standalone encryption key, separate from the wallet — the wallet is only used for signing transactions. See [issue #1](https://github.com/gabrieljaegerde/corevo_sc/issues/1) for discussion on the ideal long-term approach: forking a wallet extension to derive X25519 keys natively from the mnemonic and exposing NaCl encrypt/decrypt APIs, so the secret key never leaves the extension.
 
 ## Project structure
 
 ```
 corevo_sc/
 ├── contracts/Corevo.sol          # Smart contract
-├── test/Corevo.test.ts           # 30 tests
-├── ignition/modules/Corevo.ts    # Deployment module
-├── hardhat.config.ts             # Testnet + Kusama network config
+├── test/Corevo.test.ts           # 31 tests
+├── scripts/deploy.ts             # Deployment script
+├── hardhat.config.ts             # Network config (Paseo + Kusama Hub)
 ├── .env                          # Private key (gitignored)
 └── frontend/                     # dApp (IPFS-deployable)
     ├── src/
     │   ├── crypto.ts             # X25519 key derivation, NaCl encryption
-    │   ├── components/           # React UI components
-    │   └── ...
-    └── dist/                     # Static build output
+    │   ├── store.ts              # localStorage contacts
+    │   ├── abi.ts                # Contract ABI
+    │   ├── wagmi.ts              # Chain config, contract addresses
+    │   └── components/           # React UI components
+    └── ...
 ```
 
 ## Prerequisites
 
 - Node.js >= 18
-- MetaMask (or any injected wallet)
+- A wallet with EIP-6963 support (Talisman, MetaMask, SubWallet, Brave Wallet)
 - PAS tokens for testnet (see below) or KSM for Kusama Hub
 
 ### Network details
@@ -76,9 +77,8 @@ corevo_sc/
 
 1. Go to the [Polkadot Faucet](https://faucet.polkadot.io/)
 2. Select **Paseo** as the network and **Asset Hub** as the chain
-3. Paste your Ethereum (MetaMask) address
+3. Paste your Ethereum address
 4. Complete the captcha and request tokens
-5. Add the Polkadot Hub TestNet to MetaMask using the network details above (Chain ID `420420417`, RPC `https://eth-rpc-testnet.polkadot.io/`)
 
 ## Setup
 
@@ -97,10 +97,10 @@ npm test
 
 ### 3. Deploy the contract
 
-Add your private key to `.env`:
+Add your deployer private key to `.env`:
 
 ```
-PRIVATE_KEY=your_hex_private_key_here
+PRIVATE_KEY=0x_your_hex_private_key_here
 ```
 
 Deploy to Polkadot Hub TestNet (Paseo):
@@ -109,7 +109,7 @@ Deploy to Polkadot Hub TestNet (Paseo):
 npm run deploy:paseo
 ```
 
-Or to Kusama Hub (requires KSM):
+Deploy to Kusama Hub (requires KSM):
 
 ```bash
 npm run deploy:kusama
@@ -117,11 +117,14 @@ npm run deploy:kusama
 
 ### 4. Configure the dApp
 
-Create `frontend/.env` with the deployed contract address:
+Create `frontend/.env` with the deployed contract addresses:
 
 ```
-VITE_CONTRACT_ADDRESS=0xYourDeployedAddress
+VITE_CONTRACT_ADDRESS_PASEO=0xYourPaseoAddress
+VITE_CONTRACT_ADDRESS_KUSAMA=0xYourKusamaAddress
 ```
+
+The dApp automatically uses the correct address based on the connected wallet's chain.
 
 ### 5. Run the dApp locally
 
@@ -139,7 +142,7 @@ cd frontend
 npm run build
 ```
 
-Upload the `dist/` folder to IPFS. The build output is purely static files with no server dependencies.
+Upload the `frontend/dist/` folder to IPFS. The build output is purely static — no server required. The `dist/` directory is gitignored; pin it to IPFS directly from your local build.
 
 ## Attribution
 
