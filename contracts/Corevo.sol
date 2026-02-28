@@ -111,7 +111,6 @@ contract Corevo {
     error NotInCommitPhase();
     error CommitPhaseEnded();
     error NotAVoter();
-    error AlreadyCommitted();
     error NotInRevealPhase();
     error NotCommitted();
     error AlreadyRevealed();
@@ -196,10 +195,13 @@ contract Corevo {
         if (p.phase != Phase.Commit)                              revert NotInCommitPhase();
         if (block.timestamp > p.commitDeadline)                   revert CommitPhaseEnded();
         if (!isVoter[proposalId][msg.sender])                     revert NotAVoter();
-        if (commitments[proposalId][msg.sender] != bytes32(0))    revert AlreadyCommitted();
+
+        // Allow re-voting: only increment commitCount on the first commit
+        if (commitments[proposalId][msg.sender] == bytes32(0)) {
+            p.commitCount++;
+        }
 
         commitments[proposalId][msg.sender] = commitment;
-        p.commitCount++;
 
         emit VoteCommitted(proposalId, msg.sender, commitment);
     }

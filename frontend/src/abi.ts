@@ -1,5 +1,4 @@
 export const COREVO_ABI = [
-  { inputs: [], name: "AlreadyCommitted", type: "error" },
   { inputs: [], name: "AlreadyFinished", type: "error" },
   { inputs: [], name: "AlreadyRevealed", type: "error" },
   { inputs: [], name: "ArrayLengthMismatch", type: "error" },

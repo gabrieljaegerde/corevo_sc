@@ -57,6 +57,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [selectedVote, setSelectedVote] = useState<VoteValue>(VOTE.Aye);
+  const [voteSynced, setVoteSynced] = useState(false);
   const [commonSaltInput, setCommonSaltInput] = useState("");
   const [tally, setTally] = useState<Record<string, number | null> | null>(
     null
@@ -177,6 +178,23 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     })();
   }, [keyPair, address, client, proposalId, proposal, decryptedCommonSalt]);
 
+  // Sync selectedVote to the user's current on-chain vote once it's known.
+  // Computed here (above early return) so the effect can reference it.
+  const knownOtsEarly = (myRevealedSalt && myRevealedSalt !== ZERO_BYTES32)
+    ? (myRevealedSalt as string)
+    : (keyPair && address ? deriveOneTimeSalt(keyPair.seed, proposalId, address) : null);
+  const csEarly = commonSaltInput.trim();
+  const myVoteEarly = (myCommitment && myCommitment !== ZERO_BYTES32 && knownOtsEarly && csEarly.length === 66)
+    ? verifyVote(myCommitment as `0x${string}`, knownOtsEarly as `0x${string}`, csEarly as `0x${string}`)
+    : null;
+
+  useEffect(() => {
+    if (!voteSynced && myVoteEarly !== null && myVoteEarly !== undefined) {
+      setSelectedVote(myVoteEarly);
+      setVoteSynced(true);
+    }
+  }, [myVoteEarly, voteSynced]);
+
   if (!proposal) {
     return (
       <section className="card">
@@ -231,7 +249,8 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       )
     : null;
 
-  const canCommit = effectivePhase === 0 && now <= commitDeadline && amVoter && !hasCommitted;
+  const canCommit = effectivePhase === 0 && now <= commitDeadline && amVoter;
+  const isReVote = canCommit && hasCommitted;
   const canReveal =
     !hasRevealed &&
     hasCommitted &&
@@ -494,7 +513,18 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       {/* ── Commit ────────────────────────────────────────────── */}
       {canCommit && (
         <div className="action-section">
-          <h4>Cast Your Vote</h4>
+          <h4>{isReVote ? "Change Your Vote" : "Cast Your Vote"}</h4>
+          {isReVote && (
+            <div style={{ marginBottom: 8 }}>
+              <p className="success" style={{ marginBottom: 4 }}>
+                You have already committed
+                {myVote !== null && <> (<strong>{VOTE_LABELS[myVote]}</strong>)</>}.
+              </p>
+              <p className="warn">
+                Submitting again will overwrite your previous commitment.
+              </p>
+            </div>
+          )}
           <div className="vote-buttons">
             {([VOTE.Aye, VOTE.Nay, VOTE.Abstain] as VoteValue[]).map((v) => (
               <button
@@ -507,12 +537,14 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
             ))}
           </div>
           <button className="primary" onClick={handleCommit} disabled={busy}>
-            {busy ? <><span className="spinner" />Submitting...</> : "Commit Vote"}
+            {busy
+              ? <><span className="spinner" />Submitting...</>
+              : isReVote ? "Change Vote" : "Commit Vote"}
           </button>
         </div>
       )}
 
-      {hasCommitted && (
+      {!canCommit && hasCommitted && (
         <p className="success">
           You have committed your vote.
           {myVote !== null && <> Your vote: <strong>{VOTE_LABELS[myVote]}</strong></>}

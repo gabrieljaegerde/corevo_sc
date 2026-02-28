@@ -192,12 +192,22 @@ describe("Corevo", function () {
       ).to.be.revertedWithCustomError(corevo, "NotAVoter");
     });
 
-    it("should reject double commitment", async function () {
-      const commitment = computeCommitment(Vote.Aye, oneTimeSaltAlice, COMMON_SALT);
-      await corevo.connect(alice).commitVote(0, commitment);
+    it("should allow re-voting (overwrite commitment)", async function () {
+      const commit1 = computeCommitment(Vote.Aye, oneTimeSaltAlice, COMMON_SALT);
+      await corevo.connect(alice).commitVote(0, commit1);
+
+      const newSalt = ethers.randomBytes(32);
+      const commit2 = computeCommitment(Vote.Nay, newSalt, COMMON_SALT);
       await expect(
-        corevo.connect(alice).commitVote(0, commitment)
-      ).to.be.revertedWithCustomError(corevo, "AlreadyCommitted");
+        corevo.connect(alice).commitVote(0, commit2)
+      ).to.emit(corevo, "VoteCommitted").withArgs(0, alice.address, commit2);
+
+      // commitCount should still be 1, not 2
+      const p = await corevo.proposals(0);
+      expect(p.commitCount).to.equal(1);
+
+      // commitment should be updated
+      expect(await corevo.commitments(0, alice.address)).to.equal(commit2);
     });
 
     it("should reject commitment after deadline", async function () {
