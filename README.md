@@ -80,6 +80,17 @@ corevo_sc/
 3. Paste your Ethereum address
 4. Complete the captcha and request tokens
 
+### Funding an Ethereum account with KSM on Kusama Hub
+
+Kusama Hub supports EVM accounts (H160 Ethereum addresses), but if you hold KSM in a Substrate wallet (e.g. Talisman, Nova), you cannot send directly to an Ethereum address from the standard transfer UI. You need to convert the Ethereum address to its Substrate (SS58) equivalent first.
+
+1. **Get your Ethereum address** — from MetaMask, Talisman's Ethereum account, or wherever your EVM key is held (e.g. `0x1234...abcd`)
+2. **Convert it to SS58** — use either method:
+   - **Subscan**: search for your `0x` address on [Kusama Hub Subscan](https://assethub-kusama.subscan.io/), open the account page, and click the address conversion button to get the SS58 form
+   - **Polkadot docs**: use the [account converter](https://docs.polkadot.com/smart-contracts/for-eth-devs/accounts/) on the Polkadot developer docs
+3. **Send KSM to the SS58 address** — from Talisman, Polkadot.js Apps, or any Substrate wallet, send KSM to the converted SS58 address on Kusama Asset Hub
+4. **Verify** — add Kusama Hub to your EVM wallet (Chain ID `420420418`, RPC `https://eth-rpc-kusama.polkadot.io/`) and check the balance
+
 ## Setup
 
 ### 1. Install dependencies
