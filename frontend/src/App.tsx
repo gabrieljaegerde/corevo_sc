@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import ConnectWallet from "./components/ConnectWallet";
 import KeyStatus from "./components/KeyStatus";
@@ -17,8 +17,16 @@ export default function App() {
   const [urlCopied, setUrlCopied] = useState(false);
   const [contactsVersion, setContactsVersion] = useState(0);
 
-  // Derive key pair from URL seed (generates one if missing)
-  const keyPair = useMemo(() => ensureKeyPair(), []);
+  // Derive key pair from URL seed — re-derives on hash change
+  const [keyPair, setKeyPair] = useState(() => ensureKeyPair());
+
+  useEffect(() => {
+    function onHashChange() {
+      setKeyPair(ensureKeyPair());
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   function handleCopyUrl() {
     navigator.clipboard.writeText(window.location.href).then(() => {
