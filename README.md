@@ -151,9 +151,12 @@ Open http://localhost:5173 in your browser.
 ```bash
 cd frontend
 npm run build
+ipfs add -r --cid-version 1 -Q dist/
 ```
 
-Upload the `frontend/dist/` folder to IPFS. The build output is purely static — no server required. The `dist/` directory is gitignored; pin it to IPFS directly from your local build.
+The `-Q` flag prints only the root CID. The `-r` flag adds recursively and `--cid-version 1` produces a modern base32 CID. The directory is pinned locally by default.
+
+The build output is purely static — no server required. The `dist/` directory is gitignored; pin it to IPFS directly from your local build.
 
 ## Attribution
 
