@@ -1,4 +1,4 @@
-import { http, fallback, createConfig } from "wagmi";
+import { http, createConfig } from "wagmi";
 import { defineChain } from "viem";
 
 export const paseoTestnet = defineChain({
@@ -6,12 +6,7 @@ export const paseoTestnet = defineChain({
   name: "Polkadot Hub TestNet",
   nativeCurrency: { name: "PAS", symbol: "PAS", decimals: 18 },
   rpcUrls: {
-    default: {
-      http: [
-        "https://paseo-assethub-rpc.laissez-faire.trade",
-        "https://eth-rpc-testnet.polkadot.io/",
-      ],
-    },
+    default: { http: ["https://eth-rpc-testnet.polkadot.io/"] },
   },
   blockExplorers: {
     default: {
@@ -27,12 +22,7 @@ export const kusamaHub = defineChain({
   name: "Kusama Hub",
   nativeCurrency: { name: "KSM", symbol: "KSM", decimals: 18 },
   rpcUrls: {
-    default: {
-      http: [
-        "https://kusama-rpc.laissez-faire.trade/",
-        "https://eth-rpc-kusama.polkadot.io/",
-      ],
-    },
+    default: { http: ["https://eth-rpc-kusama.polkadot.io/"] },
   },
   blockExplorers: {
     default: {
@@ -47,14 +37,8 @@ export const config = createConfig({
   chains: [paseoTestnet, kusamaHub],
   connectors: [],
   transports: {
-    [paseoTestnet.id]: fallback([
-      http("https://paseo-assethub-rpc.laissez-faire.trade"),
-      http("https://eth-rpc-testnet.polkadot.io/"),
-    ]),
-    [kusamaHub.id]: fallback([
-      http("https://kusama-rpc.laissez-faire.trade/"),
-      http("https://eth-rpc-kusama.polkadot.io/"),
-    ]),
+    [paseoTestnet.id]: http(),
+    [kusamaHub.id]: http(),
   },
 });
 
