@@ -34,10 +34,12 @@ function formatRemaining(deadlineSec: bigint): string {
   const d = Math.floor(diff / 86400);
   const h = Math.floor((diff % 86400) / 3600);
   const m = Math.floor((diff % 3600) / 60);
+  const s = diff % 60;
   const parts: string[] = [];
   if (d > 0) parts.push(`${d}d`);
   if (h > 0) parts.push(`${h}h`);
   parts.push(`${m}m`);
+  if (diff < 600) parts.push(`${s}s`);
   return parts.join(" ");
 }
 
@@ -62,11 +64,13 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
   const [tally, setTally] = useState<Record<string, number | null> | null>(
     null
   );
+  const [verifying, setVerifying] = useState(false);
   const [decryptedCommonSalt, setDecryptedCommonSalt] = useState<string | null>(
     null
   );
   const [saltLoading, setSaltLoading] = useState(true);
   const [saltError, setSaltError] = useState(false);
+  const [, setTick] = useState(0);
 
   // ─── Contract reads ────────────────────────────────────────────
 
@@ -111,6 +115,23 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
     functionName: "getRevealProgress",
     args: [proposalId],
   });
+
+  // ─── Auto-refresh ──────────────────────────────────────────────
+  // 1s tick: keeps `now` current so countdown and phase-derived UI stay live.
+  // 30s refetch: picks up on-chain changes (others committing/revealing/finalizing).
+
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      void refetchProposal();
+      void refetchProgress();
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [refetchProposal, refetchProgress]);
 
   // ─── Try to auto-decrypt commonSalt from invitation events ─────
   // Must be above the early return to respect React's rules of hooks.
@@ -336,6 +357,7 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       return;
     }
     setError("");
+    setVerifying(true);
     try {
       const results: Record<string, number | null> = {};
       for (const voter of voters) {
@@ -367,6 +389,8 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       setTally(results);
     } catch (e: any) {
       setError(e.shortMessage || e.message);
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -577,8 +601,15 @@ export default function ProposalDetail({ proposalId, keyPair, onBack }: Props) {
       {/* ── Verify & Tally ────────────────────────────────────── */}
       <div className="action-section">
         <h4>Verify & Tally (off-chain)</h4>
-        <button onClick={handleVerify} disabled={!commonSaltInput}>
-          Verify All Votes
+        <button onClick={handleVerify} disabled={!commonSaltInput || verifying}>
+          {verifying ? (
+            <>
+              <span className="spinner" />
+              Verifying…
+            </>
+          ) : (
+            "Verify All Votes"
+          )}
         </button>
 
         {tallySummary && (
